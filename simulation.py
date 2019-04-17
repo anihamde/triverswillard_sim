@@ -10,7 +10,7 @@ inter_layer = 10
 ms = [(0,0) for i in range(N/2)]
 fs = [(0,0) for i in range(N/2)]
 
-# initialize ws and thetas for males and females in original distribution
+
 
 def sigmoid(val):
 	return(1./(1.+np.exp(-val)))
@@ -48,11 +48,22 @@ def g(w_f,v,theta_f,inter_layer=10): # need a prob function that accounts for mo
 
 	return sigmoid(layeroutput) # return prob of male
 
-def inherit_w(w_f):
+def inherit_w(w_m,w_f):
 	if type(w_f) == int:
-		return np.random.normal(w_f,0.1)
+		if np.random.binomial(1,0.5) == 1:
+			return np.random.normal(w_m,0.1)
+		else:
+			return np.random.normal(w_f,0.1)
 	else:
-		return copy_w_err(w_f)
+		w_k = []
+
+		for i in range(len(w_m)):
+			if np.random.binomial(1,0.5) == 1:
+				w_k.append(w_m[i])
+			else:
+				w_k.append(w_f[i])
+
+		return copy_w_err(w_k)
 
 def inherit_theta(theta_m,theta_f):
 	theta_k = []
