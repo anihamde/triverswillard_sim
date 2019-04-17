@@ -3,17 +3,16 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 n_gens = 1000
-N = 1000
+N = 100
 v = 0
 inter_layer = 10
-
-ms = [(0,0) for i in range(N/2)]
-fs = [(0,0) for i in range(N/2)]
-
-
+len_theta = inter_layer*2+inter_layer+inter_layer+1
 
 def sigmoid(val):
 	return(1./(1.+np.exp(-val)))
+
+def ReLU(arr):
+	return [max(0,val) for val in arr]
 
 def copy_w_err(bitarr,prob=0.01):
 	out = bitarr
@@ -23,8 +22,11 @@ def copy_w_err(bitarr,prob=0.01):
 
 	return out
 
-def f(w_m,w_f,d=2): # need a mating score function that skews male distribution
-	return (w_m**d)*w_f
+ms = [(np.random.normal(1,0.1),copy_w_err([0 for i in range(len_theta)]) ) for i in range(N//2)]
+fs = [(np.random.normal(1,0.1),copy_w_err([0 for i in range(len_theta)]) ) for i in range(N//2)]
+
+def f_func(w_m,w_f,d_m=2,d_f=0.5): # need a mating score function that skews male distribution
+	return (w_m**d_m)*(w_f**d_f)
 
 def g(w_f,v,theta_f,inter_layer=10): # need a prob function that accounts for mother's fitness
 	theta_f_first = theta_f[:inter_layer*2+inter_layer]
@@ -42,14 +44,15 @@ def g(w_f,v,theta_f,inter_layer=10): # need a prob function that accounts for mo
 	for i in range( inter_layer ):
 		layer1[i] += theta_f_first[i+2*inter_layer]
 
+	layer1 = ReLU(layer1)
 	layer1 = np.array(layer1)
 
-	layeroutput = np.dot(np.repeat(layer1,2),theta_f_last[:-1])+theta_f_last[-1]
+	layeroutput = np.dot(layer1,theta_f_last[:-1])+theta_f_last[-1]
 
 	return sigmoid(layeroutput) # return prob of male
 
 def inherit_w(w_m,w_f):
-	if type(w_f) == int:
+	if type(w_f) == float:
 		if np.random.binomial(1,0.5) == 1:
 			return np.random.normal(w_m,0.1)
 		else:
@@ -76,13 +79,15 @@ def inherit_theta(theta_m,theta_f):
 
 	return copy_w_err(theta_k)
 
-num_sexes = []
+num_sexes = [[],[]]
 
 for gen in range(n_gens):
-	expected_kids = np.array([f(i[0],j[0]) for i in ms for j in fs])
+	print(len(ms),len(fs))
+	expected_kids = np.array([ f_func(i[0],j[0]) for i in ms for j in fs ])
 	expected_kids = np.exp(expected_kids)
-	n_expected_kids = np.sum(expected_kids)
-	probs = expected_kids/n_expected_kids
+	probs = expected_kids/np.sum(expected_kids)
+	n_expected_kids = 4*N*len(ms)*len(fs)/(len(ms)+len(fs))**2 # super hacky fix
+	print(n_expected_kids)
 
 	next_gen = np.random.multinomial(n_expected_kids,probs).reshape(len(ms),len(fs))
 
@@ -95,24 +100,31 @@ for gen in range(n_gens):
 			theta_f = fs[j][1]
 			n_kids = next_gen[i][j]
 
-			theta_m = fs[i][1]
+			w_m = ms[i][0]
+			theta_m = ms[i][1]
 
 			p_male = g(w_f,v,theta_f)
 			n_m = np.random.binomial(n_kids,p_male)
 			n_f = n_kids-n_m
 
 			for m in range(n_m):
-				w_kid = inherit_w(w_f)
+				w_kid = inherit_w(w_m,w_f)
 				theta_kid = inherit_theta(theta_m,theta_f)
 				next_ms.append((w_kid,theta_kid))
 
 			for f in range(n_f):
-				w_kid = inherit_w(w_f)
+				w_kid = inherit_w(w_m,w_f)
 				theta_kid = inherit_theta(theta_m,theta_f)
 				next_fs.append((w_kid,theta_kid))
 
-	num_sexes.append(len(next_ms),len(next_fs))
+	num_sexes[0].append( len(next_ms) )
+	num_sexes[1].append( len(next_fs) )
+	print('Generation {}: {}'.format(gen, len(next_ms)/len(next_fs)) )
 
+	ms = next_ms
+	fs = next_fs
+
+num_sexes = np.array(num_sexes)
 plt.plot(num_sexes[0]/num_sexes[1])
 plt.xlabel('Generation')
 plt.ylabel('Sex Ratio (M/F)')
