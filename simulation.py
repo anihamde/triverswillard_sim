@@ -17,7 +17,7 @@ def ReLU(arr):
     return [max(0, val) for val in arr]
 
 
-def copy_w_err(bitarr, prob=0.01):
+def copy_w_err(bitarr, prob=0.001):
     out = bitarr
     for i in range(len(out)):
         if np.random.binomial(1, prob) == 1:
@@ -33,14 +33,14 @@ fs = [(np.random.normal(1, 0.1), copy_w_err(
 
 
 def f_func(w_m, w_f, d_m=2, d_f=0.5):  # need a mating score function that skews male distribution
-    return (w_m**d_m)*(w_f**d_f)
+    return (max(w_m,0)**d_m)*(max(w_f,0)**d_f)
 
 
 def g(w_f, v, theta_f, inter_layer=10):  # need a prob function that accounts for mother's fitness
     theta_f_first = theta_f[:inter_layer*2+inter_layer]
     theta_f_last = theta_f[inter_layer*2+inter_layer:]
 
-    layer0 = np.array([w_f, v])
+    layer0 = np.array([w_f-1, v]) # hacky fix
     layer1 = []
 
     for i in range(inter_layer):
@@ -95,9 +95,10 @@ num_sexes = [[], []]
 for gen in range(n_gens):
     print(len(ms), len(fs))
     expected_kids = np.array([f_func(i[0], j[0]) for i in ms for j in fs])
+    expected_kids += -max(expected_kids)
     expected_kids = np.exp(expected_kids)
     probs = expected_kids/np.sum(expected_kids)
-    n_expected_kids = 4*N*len(ms)*len(fs)/(len(ms)+len(fs))**2  # super hacky fix
+    n_expected_kids = N #4*N*len(ms)*len(fs)/(len(ms)+len(fs))**2  # super hacky fix
     print(n_expected_kids)
 
     next_gen = np.random.multinomial(n_expected_kids, probs).reshape(
@@ -116,6 +117,8 @@ for gen in range(n_gens):
             theta_m = ms[i][1]
 
             p_male = g(w_f, v, theta_f)
+            if p_male > 1 or p_male < 0:
+            	print(p_male)
             n_m = np.random.binomial(n_kids, p_male)
             n_f = n_kids-n_m
 
