@@ -21,7 +21,13 @@ def copy_w_err(bitarr, prob=0.001):
     out = bitarr
     for i in range(len(out)):
         if np.random.binomial(1, prob) == 1:
-            out[i] = 1 - out[i]
+        	
+        	if np.random.uniform() < 0.33333333333:
+        		out[i] = -1
+        	elif np.random.uniform() < 0.6666666667:
+        		out[i] = 0
+        	else:
+        		out[i] = 1
 
     return out
 
@@ -98,7 +104,7 @@ for gen in range(n_gens):
     expected_kids += -max(expected_kids)
     expected_kids = np.exp(expected_kids)
     probs = expected_kids/np.sum(expected_kids)
-    n_expected_kids = N #4*N*len(ms)*len(fs)/(len(ms)+len(fs))**2  # super hacky fix
+    n_expected_kids = N #4*N*len(ms)*len(fs)/(len(ms)+len(fs))**2  # hacky fix
     print(n_expected_kids)
 
     next_gen = np.random.multinomial(n_expected_kids, probs).reshape(
