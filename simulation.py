@@ -21,13 +21,13 @@ def copy_w_err(bitarr, prob=0.001):
     out = bitarr
     for i in range(len(out)):
         if np.random.binomial(1, prob) == 1:
-        	
-        	if np.random.uniform() < 0.33333333333:
-        		out[i] = -1
-        	elif np.random.uniform() < 0.6666666667:
-        		out[i] = 0
-        	else:
-        		out[i] = 1
+
+            if np.random.uniform() < 0.33333333333:
+                out[i] = -1
+            elif np.random.uniform() < 0.6666666667:
+                out[i] = 0
+            else:
+                out[i] = 1
 
     return out
 
@@ -38,15 +38,17 @@ fs = [(np.random.normal(1, 0.1), copy_w_err(
     [0 for i in range(len_theta)])) for i in range(N//2)]
 
 
-def f_func(w_m, w_f, d_m=2, d_f=0.5):  # need a mating score function that skews male distribution
-    return (max(w_m,0)**d_m)*(max(w_f,0)**d_f)
+# Mating score function that skews male distribution
+def f_func(w_m, w_f, d_m=2, d_f=0.5):
+    return (max(w_m, 0)**d_m)*(max(w_f, 0)**d_f)
 
 
-def g(w_f, v, theta_f, inter_layer=10):  # need a prob function that accounts for mother's fitness
+# Probability function that accounts for mother's fitness
+def g(w_f, v, theta_f, inter_layer=10):
     theta_f_first = theta_f[:inter_layer*2+inter_layer]
     theta_f_last = theta_f[inter_layer*2+inter_layer:]
 
-    layer0 = np.array([w_f-1, v]) # hacky fix
+    layer0 = np.array([w_f-1, v])  # hacky fix
     layer1 = []
 
     for i in range(inter_layer):
@@ -97,9 +99,12 @@ def inherit_theta(theta_m, theta_f):
 
 
 num_sexes = [[], []]
+ratios = []
 
 for gen in range(n_gens):
     print(len(ms), len(fs))
+    if(len(ms) == 0 or len(fs) == 0):
+        break
     expected_kids = np.array([f_func(i[0], j[0]) for i in ms for j in fs])
     expected_kids += -max(expected_kids)
     expected_kids = np.exp(expected_kids)
@@ -113,6 +118,7 @@ for gen in range(n_gens):
     next_ms = []
     next_fs = []
 
+    print(next_gen.sum(axis=0))
     for i in range(len(ms)):
         for j in range(len(fs)):
             w_f = fs[j][0]
@@ -124,7 +130,7 @@ for gen in range(n_gens):
 
             p_male = g(w_f, v, theta_f)
             if p_male > 1 or p_male < 0:
-            	print(p_male)
+                print(p_male)
             n_m = np.random.binomial(n_kids, p_male)
             n_f = n_kids-n_m
 
@@ -140,13 +146,18 @@ for gen in range(n_gens):
 
     num_sexes[0].append(len(next_ms))
     num_sexes[1].append(len(next_fs))
-    print('Generation {}: {}'.format(gen, len(next_ms)/len(next_fs)))
+    if len(next_fs) == 0:
+        break
+    next_ratio = len(next_ms) / float(len(next_fs))
+    ratios.append(next_ratio)
+    print('Generation {}: {}'.format(gen, next_ratio))
 
     ms = next_ms
     fs = next_fs
 
 num_sexes = np.array(num_sexes)
-plt.plot(num_sexes[0]/num_sexes[1])
+plt.plot(ratios)
 plt.xlabel('Generation')
 plt.ylabel('Sex Ratio (M/F)')
-plt.show()
+# plt.show()
+plt.savefig('plot')
