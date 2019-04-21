@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from util import *
 
 n_gens = 1000
 N = 100
@@ -9,22 +10,15 @@ inter_layer = 10
 len_theta = inter_layer*2+inter_layer+inter_layer+1
 
 
-def sigmoid(val):
-    return(1./(1.+np.exp(-val)))
-
-
-def ReLU(arr):
-    return [max(0, val) for val in arr]
-
-
 def copy_w_err(bitarr, prob=0.001):
     out = bitarr
     for i in range(len(out)):
         if np.random.binomial(1, prob) == 1:
-
-            if np.random.uniform() < 0.33333333333:
-                out[i] = -1
-            elif np.random.uniform() < 0.6666666667:
+            val = np.random.uniform()
+            # if val < 0.33333333333:
+            #     out[i] = -1
+            # elif val < 0.6666666667:
+            if val < 0.5:
                 out[i] = 0
             else:
                 out[i] = 1
@@ -33,13 +27,13 @@ def copy_w_err(bitarr, prob=0.001):
 
 
 ms = [(np.random.normal(1, 0.1), copy_w_err(
-    [0 for i in range(len_theta)])) for i in range(N//2)]
+    [0 for i in range(len_theta)], 0)) for i in range(N//2)]
 fs = [(np.random.normal(1, 0.1), copy_w_err(
-    [0 for i in range(len_theta)])) for i in range(N//2)]
+    [0 for i in range(len_theta)], 0)) for i in range(N//2)]
 
 
 # Mating score function that skews male distribution
-def f_func(w_m, w_f, d_m=2, d_f=0.5):
+def f_func(w_m, w_f, d_m=2.5, d_f=0.0):
     return (max(w_m, 0)**d_m)*(max(w_f, 0)**d_f)
 
 
@@ -58,12 +52,12 @@ def g(w_f, v, theta_f, inter_layer=10):
         layer1[i] += layer0[1]*theta_f_first[i+inter_layer]
 
     for i in range(inter_layer):
-        layer1[i] += theta_f_first[i+2*inter_layer]
+        layer1[i] += 0*theta_f_first[i+2*inter_layer]
 
     layer1 = ReLU(layer1)
     layer1 = np.array(layer1)
 
-    layeroutput = np.dot(layer1, theta_f_last[:-1])+theta_f_last[-1]
+    layeroutput = np.dot(layer1, theta_f_last[:-1])+0*(theta_f_last[-1])
 
     return sigmoid(layeroutput)  # return prob of male
 
@@ -118,7 +112,8 @@ for gen in range(n_gens):
     next_ms = []
     next_fs = []
 
-    print(next_gen.sum(axis=0))
+    print("Females: {}".format(next_gen.sum(axis=0)))  # female
+    print("Males: {}".format(next_gen.sum(axis=1)))  # male
     for i in range(len(ms)):
         for j in range(len(fs)):
             w_f = fs[j][0]
@@ -129,9 +124,12 @@ for gen in range(n_gens):
             theta_m = ms[i][1]
 
             p_male = g(w_f, v, theta_f)
+            if p_male > 0.5:
+                print(w_f,p_male,theta_f)
             if p_male > 1 or p_male < 0:
                 print(p_male)
             n_m = np.random.binomial(n_kids, p_male)
+            n_m = int(n_kids * p_male)
             n_f = n_kids-n_m
 
             for m in range(n_m):
