@@ -2,28 +2,13 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from util import *
+from model import *
 
 n_gens = 1000
-N = 100
+N = 200
 v = 0
 inter_layer = 10
 len_theta = inter_layer*2+inter_layer+inter_layer+1
-
-
-def copy_w_err(bitarr, prob=0.001):
-    out = bitarr
-    for i in range(len(out)):
-        if np.random.binomial(1, prob) == 1:
-            val = np.random.uniform()
-            # if val < 0.33333333333:
-            #     out[i] = -1
-            # elif val < 0.6666666667:
-            if val < 0.5:
-                out[i] = 0
-            else:
-                out[i] = 1
-
-    return out
 
 
 ms = [(np.random.normal(1, 0.1), copy_w_err(
@@ -33,12 +18,12 @@ fs = [(np.random.normal(1, 0.1), copy_w_err(
 
 
 # Mating score function that skews male distribution
-def f_func(w_m, w_f, d_m=2.5, d_f=0.0):
+def f_func(w_m, w_f, d_m=2.5, d_f=0.5):
     return (max(w_m, 0)**d_m)*(max(w_f, 0)**d_f)
 
 
 # Probability function that accounts for mother's fitness
-def g(w_f, v, theta_f, inter_layer=10):
+def g_func(w_f, v, theta_f, inter_layer=10):
     theta_f_first = theta_f[:inter_layer*2+inter_layer]
     theta_f_last = theta_f[inter_layer*2+inter_layer:]
 
@@ -52,106 +37,81 @@ def g(w_f, v, theta_f, inter_layer=10):
         layer1[i] += layer0[1]*theta_f_first[i+inter_layer]
 
     for i in range(inter_layer):
-        layer1[i] += 0*theta_f_first[i+2*inter_layer]
+        layer1[i] += theta_f_first[i+2*inter_layer]
 
     layer1 = ReLU(layer1)
     layer1 = np.array(layer1)
 
-    layeroutput = np.dot(layer1, theta_f_last[:-1])+0*(theta_f_last[-1])
+    layeroutput = np.dot(layer1, theta_f_last[:-1])+(theta_f_last[-1])
 
     return sigmoid(layeroutput)  # return prob of male
 
 
-def inherit_w(w_m, w_f):
-    if type(w_f) == float:
-        if np.random.binomial(1, 0.5) == 1:
-            return np.random.normal(w_m, 0.1)
-        else:
-            return np.random.normal(w_f, 0.1)
-    else:
-        w_k = []
-
-        for i in range(len(w_m)):
-            if np.random.binomial(1, 0.5) == 1:
-                w_k.append(w_m[i])
-            else:
-                w_k.append(w_f[i])
-
-        return copy_w_err(w_k)
-
-
-def inherit_theta(theta_m, theta_f):
-    theta_k = []
-
-    for i in range(len(theta_m)):
-        if np.random.binomial(1, 0.5) == 1:
-            theta_k.append(theta_m[i])
-        else:
-            theta_k.append(theta_f[i])
-
-    return copy_w_err(theta_k)
-
+# Initialize the Population Model
+model = PopulationModel(ms=ms, fs=fs, N=N, v=v)
+model.set_f_func(f_func)
+model.set_g_func(g_func)
 
 num_sexes = [[], []]
 ratios = []
 
+# Main Loop
 for gen in range(n_gens):
-    print(len(ms), len(fs))
-    if(len(ms) == 0 or len(fs) == 0):
+    print(len(model.ms), len(model.fs))
+    if(len(model.ms) == 0 or len(model.fs) == 0):
         break
-    expected_kids = np.array([f_func(i[0], j[0]) for i in ms for j in fs])
+
+    expected_kids = np.array(
+        [model.f_func(i[0], j[0]) for i in model.ms for j in model.fs])
     expected_kids += -max(expected_kids)
     expected_kids = np.exp(expected_kids)
-    probs = expected_kids/np.sum(expected_kids)
-    n_expected_kids = N #4*N*len(ms)*len(fs)/(len(ms)+len(fs))**2  # hacky fix
-    print(n_expected_kids)
+    probs = expected_kids / np.sum(expected_kids)
+    n_expected_kids = model.N
 
     next_gen = np.random.multinomial(n_expected_kids, probs).reshape(
-        len(ms), len(fs))
+        len(model.ms), len(model.fs))
 
     next_ms = []
     next_fs = []
 
     print("Females: {}".format(next_gen.sum(axis=0)))  # female
     print("Males: {}".format(next_gen.sum(axis=1)))  # male
-    for i in range(len(ms)):
-        for j in range(len(fs)):
-            w_f = fs[j][0]
-            theta_f = fs[j][1]
+    for i in range(len(model.ms)):
+        for j in range(len(model.fs)):
+            w_f = model.fs[j][0]
+            theta_f = model.fs[j][1]
             n_kids = next_gen[i][j]
+            if n_kids == 0:
+                continue
 
-            w_m = ms[i][0]
-            theta_m = ms[i][1]
+            w_m = model.ms[i][0]
+            theta_m = model.ms[i][1]
 
-            p_male = g(w_f, v, theta_f)
-            if p_male > 0.5:
-                print(w_f,p_male,theta_f)
-            if p_male > 1 or p_male < 0:
-                print(p_male)
-            n_m = np.random.binomial(n_kids, p_male)
+            p_male = model.g_func(w_f, model.v, theta_f)
             n_m = int(n_kids * p_male)
             n_f = n_kids-n_m
 
             for m in range(n_m):
-                w_kid = inherit_w(w_m, w_f)
-                theta_kid = inherit_theta(theta_m, theta_f)
+                w_kid = model.inherit_w(w_m, w_f)
+                theta_kid = model.inherit_theta(theta_m, theta_f)
                 next_ms.append((w_kid, theta_kid))
 
             for f in range(n_f):
-                w_kid = inherit_w(w_m, w_f)
-                theta_kid = inherit_theta(theta_m, theta_f)
+                w_kid = model.inherit_w(w_m, w_f)
+                theta_kid = model.inherit_theta(theta_m, theta_f)
                 next_fs.append((w_kid, theta_kid))
 
     num_sexes[0].append(len(next_ms))
     num_sexes[1].append(len(next_fs))
     if len(next_fs) == 0:
+        print('No more females!!')
         break
     next_ratio = len(next_ms) / float(len(next_fs))
     ratios.append(next_ratio)
     print('Generation {}: {}'.format(gen, next_ratio))
 
-    ms = next_ms
-    fs = next_fs
+    model.ms = next_ms
+    model.fs = next_fs
 
 num_sexes = np.array(num_sexes)
 plt.plot(ratios)
