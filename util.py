@@ -9,7 +9,7 @@ def ReLU(arr):
     return [max(0, val) for val in arr]
 
 
-def copy_w_err(bitarr, prob=0.001):
+def copy_w_err(bitarr, prob=0.0001):
     out = bitarr
     for i in range(len(out)):
         if np.random.binomial(1, prob) == 1:

@@ -6,24 +6,56 @@ from model import *
 
 n_gens = 1000
 N = 200
-v = 0
+v = -0.1
 inter_layer = 10
 len_theta = inter_layer*2+inter_layer+inter_layer+1
 
 
-ms = [(np.random.normal(1, 0.1), copy_w_err(
-    [0 for i in range(len_theta)], 0)) for i in range(N//2)]
-fs = [(np.random.normal(1, 0.1), copy_w_err(
-    [0 for i in range(len_theta)], 0)) for i in range(N//2)]
+def init_males_and_females(len_theta=len_theta, inter_layer=inter_layer):
+    tw = False
+    lrc = True
+
+    ms_w = [(np.random.normal(1, 1.1)) for i in range(N//2)]
+    fs_w = [(np.random.normal(1, 1.1)) for i in range(N//2)]
+
+    ms_thetas = [copy_w_err(
+        [0 for i in range(len_theta)], 0.0) for i in range(N//2)]
+    fs_thetas = [copy_w_err(
+        [0 for i in range(len_theta)], 0.0) for i in range(N//2)]
+
+    # make theta_f_first[:inter_layer] 1's
+    if tw:
+        for i in range(len(ms_thetas)):
+            ms_thetas[i][:inter_layer] = [1] * inter_layer
+        for i in range(len(fs_thetas)):
+            fs_thetas[i][:inter_layer] = [1] * inter_layer
+
+    # make theta_f_first[inter_layer:inter_layer*2] 1's
+    if lrc:
+        for i in range(len(ms_thetas)):
+            ms_thetas[i][inter_layer:inter_layer*2] = [1] * inter_layer
+        for i in range(len(fs_thetas)):
+            fs_thetas[i][inter_layer:inter_layer*2] = [1] * inter_layer
+
+    # make theta_f_last 1's
+    for i in range(len(ms_thetas)):
+        ms_thetas[i][inter_layer*2+inter_layer:] = (
+            [1] * len(ms_thetas[i][inter_layer*2+inter_layer:]))
+        fs_thetas[i][inter_layer*2+inter_layer:] = (
+            [1] * len(fs_thetas[i][inter_layer*2+inter_layer:]))
+
+    ms = [(ms_w[i], ms_thetas[i]) for i in range(N//2)]
+    fs = [(fs_w[i], fs_thetas[i]) for i in range(N//2)]
+    return ms, fs
 
 
 # Mating score function that skews male distribution
-def f_func(w_m, w_f, d_m=2.5, d_f=0.5):
+def f_func(w_m, w_f, d_m=5.0, d_f=0.0):
     return (max(w_m, 0)**d_m)*(max(w_f, 0)**d_f)
 
 
 # Probability function that accounts for mother's fitness
-def g_func(w_f, v, theta_f, inter_layer=10):
+def g_func(w_f, v, theta_f, inter_layer=inter_layer):
     theta_f_first = theta_f[:inter_layer*2+inter_layer]
     theta_f_last = theta_f[inter_layer*2+inter_layer:]
 
@@ -39,7 +71,7 @@ def g_func(w_f, v, theta_f, inter_layer=10):
     for i in range(inter_layer):
         layer1[i] += theta_f_first[i+2*inter_layer]
 
-    layer1 = ReLU(layer1)
+    # layer1 = ReLU(layer1)
     layer1 = np.array(layer1)
 
     layeroutput = np.dot(layer1, theta_f_last[:-1])+(theta_f_last[-1])
@@ -48,6 +80,8 @@ def g_func(w_f, v, theta_f, inter_layer=10):
 
 
 # Initialize the Population Model
+ms, fs = init_males_and_females()
+
 model = PopulationModel(ms=ms, fs=fs, N=N, v=v)
 model.set_f_func(f_func)
 model.set_g_func(g_func)
@@ -81,14 +115,16 @@ for gen in range(n_gens):
             w_f = model.fs[j][0]
             theta_f = model.fs[j][1]
             n_kids = next_gen[i][j]
-            if n_kids == 0:
+            if n_kids == 0 and gen % 100 != 0:
                 continue
 
             w_m = model.ms[i][0]
             theta_m = model.ms[i][1]
 
             p_male = model.g_func(w_f, model.v, theta_f)
-            n_m = int(n_kids * p_male)
+            if gen % 100 == 0:
+                print('w_f: {}, p_male: {}'.format(w_f, p_male))
+            n_m = int(round(n_kids * p_male))
             n_f = n_kids-n_m
 
             for m in range(n_m):
